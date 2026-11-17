@@ -6,18 +6,31 @@ and descriptive summaries across Track A (2020-2023) and Track B (2022-2023).
 
 from __future__ import annotations
 
+import argparse
 import sqlite3
 from pathlib import Path
 import pandas as pd
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
-SQLITE_PATH = DATA_DIR / "master_j2_t1_digital_learning.sqlite"
+DEFAULT_DATA_DIR = Path(__file__).resolve().parent / "data"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Verify J2-T1 Master Database integrity and parity.")
+    parser.add_argument(
+        "--data-dir",
+        default=str(DEFAULT_DATA_DIR),
+        help="Directory containing master_j2_t1_digital_learning.sqlite and CSV/CSV.GZ exports (default: ./data)",
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
-    assert SQLITE_PATH.exists(), f"Missing SQLite DB at {SQLITE_PATH}"
+    args = parse_args()
+    data_dir = Path(args.data_dir)
+    sqlite_path = data_dir / "master_j2_t1_digital_learning.sqlite"
+    assert sqlite_path.exists(), f"Missing SQLite DB at {sqlite_path}"
 
-    with sqlite3.connect(SQLITE_PATH) as conn:
+    with sqlite3.connect(sqlite_path) as conn:
         tables = pd.read_sql_query(
             "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", conn
         )["name"].tolist()
@@ -33,11 +46,11 @@ def main() -> None:
 
         # Verify SQLite vs CSV/CSV.GZ row-count parity
         df_stu_sql = pd.read_sql_query("SELECT * FROM fact_secondary_students", conn)
-        df_stu_csv = pd.read_csv(DATA_DIR / "fact_secondary_students.csv")
+        df_stu_csv = pd.read_csv(data_dir / "fact_secondary_students.csv")
         assert len(df_stu_sql) == len(df_stu_csv)
 
         df_hh_sql = pd.read_sql_query("SELECT * FROM fact_household_context", conn)
-        df_hh_csv = pd.read_csv(DATA_DIR / "fact_household_context.csv.gz")
+        df_hh_csv = pd.read_csv(data_dir / "fact_household_context.csv.gz")
         assert len(df_hh_sql) == len(df_hh_csv)
 
         # Verify FK integrity via SQL JOIN

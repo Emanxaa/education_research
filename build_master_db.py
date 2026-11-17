@@ -4,14 +4,16 @@ The Post-Pandemic Digital Learning Divide (SUSENAS West Java 2020-2023).
 
 Executes column-projected (lazy) ingestion across 2020-2023 waves,
 applies verified questionnaire crosswalks, validates Pydantic data contracts,
-builds SQLite relational Master DB + Parquet analytical marts,
-and outputs a Data Dictionary and QA Audit Report.
+builds SQLite relational Master DB + CSV/CSV.GZ analytical marts (with Parquet fallback),
+and outputs a QA Audit Report.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -24,11 +26,49 @@ from pydantic import BaseModel, Field, ValidationError
 # ------------------------------------------------------------------------------
 # Paths & Configuration
 # ------------------------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SUSENAS_ROOT = Path(r"D:\IPB\KULIAH\S1\SD\Tugas\SUSENAS\JAWA BARAT")
-MASTER_WILAYAH_PATH = PROJECT_ROOT / "infografis" / "catalog" / "master_wilayah.json"
-OUT_DIR = Path(__file__).resolve().parent / "data"
-SQLITE_PATH = OUT_DIR / "master_j2_t1_digital_learning.sqlite"
+REPO_DIR = Path(__file__).resolve().parent
+
+
+def load_dotenv_file(env_path: Path) -> Dict[str, str]:
+    """Read simple KEY=VALUE pairs from a local .env file if present."""
+    parsed: Dict[str, str] = {}
+    if not env_path.exists():
+        return parsed
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        parsed[key.strip()] = val.strip().strip('"').strip("'")
+    return parsed
+
+
+def resolve_config_paths(
+    susenas_root_arg: Optional[str] = None,
+    master_wilayah_arg: Optional[str] = None,
+    out_dir_arg: Optional[str] = None,
+) -> Tuple[Path, Path, Path]:
+    """Resolve portable SUSENAS_ROOT, master_wilayah.json, and output directory."""
+    dotenv = load_dotenv_file(REPO_DIR / ".env")
+    susenas_raw = (
+        susenas_root_arg
+        or os.environ.get("SUSENAS_ROOT")
+        or dotenv.get("SUSENAS_ROOT")
+        or str(REPO_DIR / "data" / "raw")
+    )
+    wilayah_raw = (
+        master_wilayah_arg
+        or os.environ.get("MASTER_WILAYAH_PATH")
+        or dotenv.get("MASTER_WILAYAH_PATH")
+        or str(REPO_DIR / "config" / "master_wilayah.json")
+    )
+    out_raw = (
+        out_dir_arg
+        or os.environ.get("J2_T1_OUT_DIR")
+        or dotenv.get("J2_T1_OUT_DIR")
+        or str(REPO_DIR / "data")
+    )
+    return Path(susenas_raw), Path(wilayah_raw), Path(out_raw)
 
 WAVES = [2020, 2021, 2022, 2023]
 
@@ -207,20 +247,25 @@ def weighted_mean_and_se(vals: np.ndarray, w: np.ndarray) -> Tuple[float, float,
     return p, n_eff, se
 
 
-def find_wave_files(year: int) -> Tuple[Path, Path, Path]:
+def find_wave_files(year: int, susenas_root: Path) -> Tuple[Path, Path, Path]:
     """Locate KOR IND PART1, KOR RT, and KP BP 4.3 CSV paths for a wave."""
-    yr_dir = SUSENAS_ROOT / str(year) / "csv"
+    yr_dir = susenas_root / str(year) / "csv"
     ind_files = sorted((yr_dir / "KOR").glob("*PART1*.csv"))
     rt_files = sorted((yr_dir / "KOR").glob("*Rumah Tangga*.csv"))
     kp_files = sorted(yr_dir.glob("Modul KP*/*4.3*.csv"))
     if not ind_files or not rt_files or not kp_files:
-        raise FileNotFoundError(f"Missing required CSVs for wave {year} in {yr_dir}")
+        raise FileNotFoundError(
+            f"Missing required CSVs for wave {year} in {yr_dir}. "
+            "Configure SUSENAS_ROOT (via .env, env var, or --susenas-root) to your raw SUSENAS West Java folder."
+        )
     return ind_files[0], rt_files[0], kp_files[0]
 
 
-def load_dim_wilayah() -> pd.DataFrame:
+def load_dim_wilayah(master_wilayah_path: Path) -> pd.DataFrame:
     """Load canonical 27 West Java regencies/cities from master_wilayah.json."""
-    with open(MASTER_WILAYAH_PATH, "r", encoding="utf-8") as f:
+    if not master_wilayah_path.exists():
+        raise FileNotFoundError(f"Missing wilayah reference file at {master_wilayah_path}")
+    with open(master_wilayah_path, "r", encoding="utf-8") as f:
         payload = json.load(f)
     rows = []
     for item in payload["kabupaten_kota_jabar"]:
@@ -237,11 +282,11 @@ def load_dim_wilayah() -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("kode_bps").reset_index(drop=True)
 
 
-def process_wave(year: int, dim_wilayah: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, dict]:
+def process_wave(year: int, dim_wilayah: pd.DataFrame, susenas_root: Path) -> Tuple[pd.DataFrame, pd.DataFrame, dict]:
     """Lazily read needed columns for one wave and return (hh_df, students_df, wave_stats)."""
     cfg = YEAR_SCHEMA_MAP[year]
     hh_key = cfg["hh_key"]
-    ind_path, rt_path, kp_path = find_wave_files(year)
+    ind_path, rt_path, kp_path = find_wave_files(year, susenas_root)
 
     # 1. Read KOR RT (projected columns only)
     rt_cols = [hh_key, "R102", "R105", "WI1", "R301", "R1816", "R2001F", "R2204A", "FWT"]
@@ -685,11 +730,45 @@ def write_qa_report(
     out_path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def main() -> None:
-    t0 = time.perf_counter()
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Build the J2-T1 SUSENAS West Java (2020-2023) relational Master DB."
+    )
+    parser.add_argument(
+        "--susenas-root",
+        default=None,
+        help="Path to raw SUSENAS West Java folder (overrides SUSENAS_ROOT env/.env; default: ./data/raw)",
+    )
+    parser.add_argument(
+        "--master-wilayah",
+        default=None,
+        help="Path to master_wilayah.json (default: ./config/master_wilayah.json)",
+    )
+    parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="Output directory for SQLite and CSV/CSV.GZ artifacts (default: ./data)",
+    )
+    return parser.parse_args()
 
-    dim_wilayah = load_dim_wilayah()
+
+def main() -> None:
+    args = parse_args()
+    susenas_root, master_wilayah_path, out_dir = resolve_config_paths(
+        args.susenas_root, args.master_wilayah, args.out_dir
+    )
+    if not susenas_root.exists():
+        raise FileNotFoundError(
+            f"SUSENAS_ROOT not found at '{susenas_root}'. "
+            "Copy .env.example to .env and set SUSENAS_ROOT, set the SUSENAS_ROOT env var, "
+            "or pass --susenas-root /path/to/SUSENAS/JAWA_BARAT."
+        )
+
+    t0 = time.perf_counter()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sqlite_path = out_dir / "master_j2_t1_digital_learning.sqlite"
+
+    dim_wilayah = load_dim_wilayah(master_wilayah_path)
     dim_gelombang = pd.DataFrame(
         [
             {"tahun": 2020, "fase_pandemi": "Awal Pandemi (Maret 2020)", "join_key_asal": "RENUM", "catatan_kuesioner": "Online learning di R811_B; status sekolah R612; belum ada R812 & R611"},
@@ -701,7 +780,7 @@ def main() -> None:
 
     hh_parts, stu_parts, wave_stats = [], [], []
     for yr in WAVES:
-        hh_yr, stu_yr, st = process_wave(yr, dim_wilayah)
+        hh_yr, stu_yr, st = process_wave(yr, dim_wilayah, susenas_root)
         hh_parts.append(hh_yr)
         stu_parts.append(stu_yr)
         wave_stats.append(st)
@@ -713,22 +792,22 @@ def main() -> None:
     qa_df, diag = run_qa_checks(df_hh, df_stu, df_agg, wave_stats)
 
     # Save Clean Flat Analytical Marts (CSV/CSV.GZ + optional Parquet fallback)
-    df_hh.to_csv(OUT_DIR / "fact_household_context.csv.gz", index=False, compression="gzip")
-    df_stu.to_csv(OUT_DIR / "fact_secondary_students.csv", index=False)
-    df_agg.to_csv(OUT_DIR / "agg_kabkota_wave_summary.csv", index=False)
+    df_hh.to_csv(out_dir / "fact_household_context.csv.gz", index=False, compression="gzip")
+    df_stu.to_csv(out_dir / "fact_secondary_students.csv", index=False)
+    df_agg.to_csv(out_dir / "agg_kabkota_wave_summary.csv", index=False)
     parquet_exported = False
     try:
-        df_hh.to_parquet(OUT_DIR / "fact_household_context.parquet", index=False)
-        df_stu.to_parquet(OUT_DIR / "fact_secondary_students.parquet", index=False)
-        df_agg.to_parquet(OUT_DIR / "agg_kabkota_wave_summary.parquet", index=False)
+        df_hh.to_parquet(out_dir / "fact_household_context.parquet", index=False)
+        df_stu.to_parquet(out_dir / "fact_secondary_students.parquet", index=False)
+        df_agg.to_parquet(out_dir / "agg_kabkota_wave_summary.parquet", index=False)
         parquet_exported = True
     except Exception as exc:
         print(f"Note: Parquet export skipped due to environment policy ({type(exc).__name__}); SQLite + CSV/CSV.GZ exported.")
 
     # Save Relational SQLite Master DB
-    if SQLITE_PATH.exists():
-        SQLITE_PATH.unlink()
-    with sqlite3.connect(SQLITE_PATH) as conn:
+    if sqlite_path.exists():
+        sqlite_path.unlink()
+    with sqlite3.connect(sqlite_path) as conn:
         dim_wilayah.to_sql("dim_wilayah", conn, index=False)
         dim_gelombang.to_sql("dim_gelombang", conn, index=False)
         df_hh.to_sql("fact_household_context", conn, index=False)
@@ -743,10 +822,10 @@ def main() -> None:
 
     elapsed = time.perf_counter() - t0
     # Note: Unified column dictionary, glossary, and formulas live in data/README.md + CODEBOOK.csv.
-    write_qa_report(OUT_DIR / "qa_audit_report.md", qa_df, diag, wave_stats, df_stu, elapsed)
+    write_qa_report(out_dir / "qa_audit_report.md", qa_df, diag, wave_stats, df_stu, elapsed)
 
     print(f"BUILD COMPLETE in {elapsed:.2f}s")
-    print(f"SQLite: {SQLITE_PATH}")
+    print(f"SQLite: {sqlite_path}")
     print(f"QA Summary: {(qa_df['status'] == 'PASS').sum()}/{len(qa_df)} checks PASSED")
     print("Diag summary:", json.dumps(diag, indent=2))
 

@@ -1,0 +1,5 @@
+numpy>=2.0.0
+pandas>=2.2.0
+pydantic>=2.0.0
+# Optional for Parquet export (build_master_db.py automatically falls back to SQLite + CSV/CSV.GZ if unavailable):
+# pyarrow>=15.0.0
