@@ -1,0 +1,25 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+
+# SUSENAS microdata binaries & student/household exports
+# Intentionally excluded from public GitHub to respect BPS RI microdata dissemination rules
+data/*.sqlite
+data/*.sqlite3
+data/*.db
+data/*.parquet
+data/fact_*.csv
+data/fact_*.csv.gz
+data/raw/
+
+# Secrets, OS, & Editor files
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
+.vscode/

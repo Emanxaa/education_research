@@ -1,0 +1,97 @@
+table_name,column_name,sqlite_type,role,waves_available,allowed_values_or_range,source_susenas_mapping,description_id,description_en
+agg_kabkota_wave_summary,tahun,INTEGER,FK,2020-2023,2020..2023,Wave year,Tahun gelombang survei,March SUSENAS wave year
+agg_kabkota_wave_summary,kode_bps,TEXT,FK,2020-2023,3201..3279,32 + R102,Kode standar BPS 4-digit Kab/Kota,Standard 4-digit BPS regency/city code
+agg_kabkota_wave_summary,nama_wilayah_std,TEXT,Attribute,2020-2023,27 official names,dim_wilayah,Nama resmi Kabupaten/Kota,Standardized regency/city name
+agg_kabkota_wave_summary,tipe_wilayah,TEXT,Attribute,2020-2023,KABUPATEN | KOTA,dim_wilayah,Klasifikasi Kabupaten vs Kota,Regency vs City classification
+agg_kabkota_wave_summary,n_students_formal,INTEGER,Aggregate,2020-2023,> 0,COUNT(*),Jumlah sampel siswa formal tak-terboboti,Unweighted sample count of formal secondary students in cell
+agg_kabkota_wave_summary,weighted_pop_students,REAL,Aggregate,2020-2023,> 0,SUM(weind),Estimasi populasi siswa menengah formal,Estimated formal secondary student population in cell
+agg_kabkota_wave_summary,kish_n_eff,REAL,Diagnostic,2020-2023,> 0,(sum w)^2 / sum(w^2),Ukuran sampel efektif Kish pada sel Kab/Kota-Tahun,Kish effective sample size in regency-wave cell
+agg_kabkota_wave_summary,deff_kish,REAL,Diagnostic,2020-2023,>= 1.0,n / kish_n_eff,Design effect (DEFF) bobot pada sel wilayah-tahun,Kish weight design effect in cell
+agg_kabkota_wave_summary,weighted_online_learning_pct,REAL,Aggregate,2020-2023,0..100,Weighted mean * 100,Persentase terboboti partisipasi belajar daring (%),Weighted online learning participation (%)
+agg_kabkota_wave_summary,ol_se_pct,REAL,Aggregate,2020-2023,>= 0,Kish-adjusted SE * 100,Galat baku estimasi belajar daring (%),Approximate standard error of online learning (%)
+agg_kabkota_wave_summary,weighted_ict_literacy_pct,REAL,Aggregate,2022-2023,0..100 | NULL,Weighted mean * 100,"Persentase terboboti literasi TIK R812 (%, 2022-2023)","Weighted ICT literacy rate (%, 2022-2023 only)"
+agg_kabkota_wave_summary,ict_se_pct,REAL,Aggregate,2022-2023,>= 0 | NULL,Kish-adjusted SE * 100,Galat baku estimasi literasi TIK (%),Approximate standard error of ICT literacy (%)
+agg_kabkota_wave_summary,weighted_pc_laptop_pct,REAL,Aggregate,2020-2023,0..100,Weighted mean * 100,Persentase terboboti pengguna PC/Laptop/Tablet (%),Weighted share using PC/laptop/tablet (%)
+agg_kabkota_wave_summary,weighted_internet_pct,REAL,Aggregate,2020-2023,0..100,Weighted mean * 100,Persentase terboboti pengguna internet (%),Weighted share using internet (%)
+dim_gelombang,tahun,INTEGER,PK,2020-2023,2020..2023,Wave year,Tahun gelombang survei SUSENAS Maret,March SUSENAS survey wave year
+dim_gelombang,fase_pandemi,TEXT,Attribute,2020-2023,Text label,Curated,Fase pandemi saat pencacahan Maret,Pandemic phase label at March enumeration
+dim_gelombang,join_key_asal,TEXT,Attribute,2020-2023,RENUM | URUT,CSV header,Nama kolom kunci rumah tangga asli di CSV,Original household join column in raw SUSENAS
+dim_gelombang,catatan_kuesioner,TEXT,Attribute,2020-2023,Text note,Metadata audit,Catatan perubahan kode kuesioner pada gelombang,Key questionnaire schema changes for the wave
+dim_wilayah,kode_r102,INTEGER,Raw_Key,2020-2023,"1..18, 71..79",R102,Kode asli Kab/Kota R102 di CSV SUSENAS,Raw 1-2 digit regency/city code in SUSENAS CSVs
+dim_wilayah,kode_bps,TEXT,PK,2020-2023,3201..3279 (27 areas),32 + R102,Kode standar BPS 4-digit Kab/Kota Jawa Barat,Standard 4-digit BPS regency/city code for West Java
+dim_wilayah,kode_kemendagri,TEXT,Attribute,2020-2023,32.01..32.79,master_wilayah.json,Kode wilayah resmi Kemendagri,Kemendagri administrative area code
+dim_wilayah,nama_wilayah_std,TEXT,Attribute,2020-2023,27 official names,master_wilayah.json,Nama resmi Kabupaten/Kota huruf kapital,Standardized uppercase regency/city name
+dim_wilayah,tipe_wilayah,TEXT,Attribute,2020-2023,KABUPATEN | KOTA,master_wilayah.json,Status wilayah administratif (KABUPATEN/KOTA),"Administrative status (18 Kabupaten, 9 Kota)"
+fact_household_context,hh_uid,TEXT,PK/FK,2020-2023,{tahun}_{hh_id},RENUM (20-21) / URUT (22-23),ID unik rumah tangga lintas gelombang,Unique surrogate household ID across waves
+fact_household_context,tahun,INTEGER,FK,2020-2023,2020..2023,Wave year,Tahun gelombang survei,March SUSENAS wave year
+fact_household_context,kode_bps,TEXT,FK,2020-2023,3201..3279,32 + R102,Kode standar BPS 4-digit Kab/Kota,Standard 4-digit BPS regency/city code
+fact_household_context,r105_urban,INTEGER,Predictor,2020-2023,"0=Rural, 1=Urban",R105==1,Indikator perkotaan (1) vs perdesaan (0),Urban/Rural residence indicator
+fact_household_context,strata_code,INTEGER,Survey_Design,2020-2023,11..792 (47 strata),R102*10 + R105,Kode 47 strata desain sampel survei,"Sampling stratum (47 strata, reconstructed identically for 2023)"
+fact_household_context,psu_wi1,TEXT,Survey_Design,2020-2023,{tahun}_{WI1},WI1 (1:1 PSU),ID klaster Primary Sampling Unit (WI1),Primary Sampling Unit cluster ID
+fact_household_context,wert,REAL,Weight,2020-2023,> 0,KP43 WERT,Bobot ekspansi rumah tangga,Household expansion weight
+fact_household_context,weind_hh_sum,REAL,Weight,2020-2023,> 0,KP43 WEIND,Bobot ekspansi penduduk tingkat rumah tangga,Population weight summed at household level
+fact_household_context,hh_size,INTEGER,Predictor,2020-2023,>= 1,R301,Jumlah anggota rumah tangga,Number of household members
+fact_household_context,food,REAL,Economy,2020-2023,IDR/month >= 0,KP43 FOOD,Pengeluaran makanan rumah tangga sebulan (Rp),Monthly household food expenditure (IDR)
+fact_household_context,nonfood,REAL,Economy,2020-2023,IDR/month >= 0,KP43 NONFOOD,Pengeluaran non-makanan rumah tangga sebulan (Rp),Monthly household non-food expenditure (IDR)
+fact_household_context,expend,REAL,Economy,2020-2023,IDR/month > 0,KP43 EXPEND,Total pengeluaran rumah tangga sebulan (Rp),Total monthly household expenditure (IDR)
+fact_household_context,kapita,REAL,Predictor,2020-2023,IDR/month > 0,KP43 KAPITA,Pengeluaran per kapita sebulan (Rp),Monthly per-capita household expenditure (IDR)
+fact_household_context,log_kapita,REAL,Predictor,2020-2023,Real,ln(KAPITA),Logaritma natural pengeluaran per kapita,Natural logarithm of per-capita expenditure
+fact_household_context,exp_quintile,INTEGER,Predictor,2020-2023,1..5 (1=poorest),"Weighted quantile(KAPITA, WERT)","Kuintil pengeluaran terboboti WERT per gelombang (1=termiskin, 5=terkaya)",Wave-specific weighted expenditure quintile across all Jabar HH
+fact_household_context,krt_female,INTEGER,Predictor,2020-2023,0 | 1,R405 (R403==1),"Kepala Rumah Tangga perempuan (1=Ya, 0=Laki-laki)",Female household head indicator
+fact_household_context,krt_edu_cat,TEXT,Predictor,2020-2023,5 categories,R615 (20-21) / R614 (22-23),Tingkat ijazah tertinggi KRT (5 kategori terharmonisir),Harmonized highest certificate of household head
+fact_household_context,rt_has_computer_r2001f,INTEGER,Predictor,2020-2023,0 | 1,R2001F==1,RT memiliki komputer/laptop (R2001F=1),Household owns desktop/laptop indicator
+fact_household_context,has_pkh,INTEGER,Predictor,2020-2023,0 | 1,R2204A==1,RT penerima bantuan PKH (R2204A=1),Household receives PKH conditional cash transfer
+fact_household_context,electric_light,INTEGER,Predictor,2020-2023,0 | 1,"R1816 in {1,2}",Sumber penerangan utama listrik,Household uses electric lighting (PLN/Non-PLN)
+fact_secondary_students,student_uid,TEXT,PK,2020-2023,{hh_uid}_{R401},hh_uid + R401,ID unik siswa lintas gelombang,Unique surrogate student ID across waves
+fact_secondary_students,hh_uid,TEXT,PK/FK,2020-2023,{tahun}_{hh_id},RENUM (20-21) / URUT (22-23),ID unik rumah tangga lintas gelombang,Unique surrogate household ID across waves
+fact_secondary_students,tahun,INTEGER,FK,2020-2023,2020..2023,Wave year,Tahun gelombang survei,March SUSENAS wave year
+fact_secondary_students,kode_bps,TEXT,FK,2020-2023,3201..3279,32 + R102,Kode standar BPS 4-digit Kab/Kota,Standard 4-digit BPS regency/city code
+fact_secondary_students,nama_wilayah_std,TEXT,Attribute,2020-2023,27 official names,dim_wilayah,Nama resmi Kabupaten/Kota,Standardized regency/city name
+fact_secondary_students,tipe_wilayah,TEXT,Attribute,2020-2023,KABUPATEN | KOTA,dim_wilayah,Klasifikasi Kabupaten vs Kota,Regency vs City classification
+fact_secondary_students,r105_urban,INTEGER,Predictor,2020-2023,"0=Rural, 1=Urban",R105==1,Indikator perkotaan (1) vs perdesaan (0),Urban/Rural residence indicator
+fact_secondary_students,strata_code,INTEGER,Survey_Design,2020-2023,11..792 (47 strata),R102*10 + R105,Kode 47 strata desain sampel survei,"Sampling stratum (47 strata, reconstructed identically for 2023)"
+fact_secondary_students,psu_wi1,TEXT,Survey_Design,2020-2023,{tahun}_{WI1},WI1 (1:1 PSU),ID klaster Primary Sampling Unit (WI1),Primary Sampling Unit cluster ID
+fact_secondary_students,weind,REAL,Weight,2020-2023,> 0,KOR_IND1 FWT,Bobot ekspansi individu (FWT KOR IND1),Individual expansion weight (equals WEIND)
+fact_secondary_students,weind_norm_wave,REAL,Weight,2020-2023,mean=1.0 per wave,weind / mean_wave,Bobot individu ternormalisasi rata-rata 1.0 per gelombang,Wave-normalized individual weight for pooled modeling
+fact_secondary_students,weind_norm_kab,REAL,Weight,2020-2023,mean=1.0 per kab-wave,"weind / mean(yr,kab)",Bobot ternormalisasi dalam klaster Kab/Kota-Tahun (Carle 2009),Cluster-scaled weight (Carle 2009 Method A) for 2-level models
+fact_secondary_students,weind_trim_p99,REAL,Weight,2020-2023,0 < w <= p99,winsorized p99,Bobot individu di-winsorize pada persentil 99 per gelombang,Individual weight trimmed at 99th percentile per wave
+fact_secondary_students,weind_trim_norm_wave,REAL,Weight,2020-2023,mean=1.0 per wave,trimmed / mean_wave,Bobot persentil-99 ternormalisasi untuk uji sensitivitas,Wave-normalized trimmed weight for sensitivity analysis
+fact_secondary_students,age,INTEGER,Predictor,2020-2023,11..53,R407,Umur siswa dalam tahun,Student age in years
+fact_secondary_students,female,INTEGER,Predictor,2020-2023,0 | 1,R405==2,"Siswa perempuan (1=Perempuan, 0=Laki-laki)",Female student indicator
+fact_secondary_students,school_level,TEXT,Predictor,2020-2023,10 levels,R613 (20-21) / R612 (22-23),Jenjang pendidikan menengah terperinci,"Detailed secondary school level (SMP, MTs, SMA, MA, SMK, MAK, Paket, SLB)"
+fact_secondary_students,school_tier,TEXT,Predictor,2020-2023,Junior_Secondary | Senior_General | Senior_Vocational,Grouped level,"Pengelompokan 3 jalur menengah (SMP-eq, SMA-eq, SMK-eq)",3-tier secondary track grouping
+fact_secondary_students,is_formal_secondary,INTEGER,Filter_Flag,2020-2023,0 | 1,"Formal={SMP,MTs,SMA,MA,SMK,MAK}",Flag siswa formal (1) vs jalur kesetaraan/SLB (0),"1=Formal secondary school, 0=Paket B/C or SMPLB/SMLB"
+fact_secondary_students,is_typical_age_11_19,INTEGER,Filter_Flag,2020-2023,0 | 1,11 <= age <= 19,Flag usia remaja lazim 11-19 tahun,1=Typical secondary school age (11-19 yrs)
+fact_secondary_students,school_sector,TEXT,Predictor,2022-2023,Negeri | Swasta | NULL,R611 (2022-2023 only),Sektor sekolah Negeri vs Swasta (khusus 2022-2023),Public vs Private school sector (NULL in 2020-2021)
+fact_secondary_students,online_learning,INTEGER,Outcome_Y1,2020-2023,0 | 1,R811_B (20-21) / R811_H (22-23),"Outcome Track A & B: Pakai internet utk pembelajaran (1=Ya, 0=Tidak)",Used internet for online learning in past 3 months
+fact_secondary_students,ict_literacy,REAL,Outcome_Y2,2022-2023,0 | 1 | NULL,R812 (2022-2023 only),Outcome Track B: Pernah belajar TIK (khusus 2022-2023),Ever received ICT/computer training (NULL in 2020-2021)
+fact_secondary_students,uses_phone,INTEGER,Predictor,2020-2023,0 | 1,R801==1,Menggunakan telepon seluler,Used a mobile phone in past 3 months
+fact_secondary_students,owns_phone,INTEGER,Predictor,2020-2023,0 | 1,R802==1,Memiliki/menguasai telepon seluler,Owns/controls a mobile phone
+fact_secondary_students,uses_pc_desktop,INTEGER,Predictor,2020-2023,0 | 1,R807_A=='A',Menggunakan komputer desktop (PC),Used a desktop PC in past 3 months
+fact_secondary_students,uses_laptop,INTEGER,Predictor,2020-2023,0 | 1,R807_B=='B',Menggunakan laptop/notebook,Used a laptop/notebook in past 3 months
+fact_secondary_students,uses_tablet,INTEGER,Predictor,2020-2023,0 | 1,R807_C=='C',Menggunakan tablet,Used a tablet in past 3 months
+fact_secondary_students,has_computer_device,INTEGER,Predictor,2020-2023,0 | 1,PC | Laptop | Tablet,Memakai minimal salah satu perangkat PC/Laptop/Tablet,"Used any computing device (PC, laptop, or tablet)"
+fact_secondary_students,device_tier,TEXT,Predictor,2020-2023,None | HP_Only | PC_Laptop_Tablet,Derived ICT device tier,Tingkatan akses perangkat pribadi (None vs HP_Only vs PC_Laptop_Tablet),Hierarchical personal ICT device access tier
+fact_secondary_students,uses_internet,INTEGER,Predictor,2020-2023,0 | 1,R808==1,Menggunakan internet dalam 3 bulan terakhir,Used internet in past 3 months
+fact_secondary_students,internet_via_hp,INTEGER,Predictor,2020-2023,0 | 1,R809_D=='D',Mengakses internet melalui HP/Ponsel,Accessed internet via mobile phone
+fact_secondary_students,internet_at_home,INTEGER,Predictor,2020-2023,0 | 1,R810_A=='A',Mengakses internet di rumah sendiri,Accessed internet at own home
+fact_secondary_students,internet_at_school,INTEGER,Predictor,2020-2023,0 | 1,R810_D=='D',Mengakses internet di gedung sekolah/kampus,Accessed internet at school/campus
+fact_secondary_students,kapita,REAL,Predictor,2020-2023,IDR/month > 0,KP43 KAPITA,Pengeluaran per kapita sebulan (Rp),Monthly per-capita household expenditure (IDR)
+fact_secondary_students,log_kapita,REAL,Predictor,2020-2023,Real,ln(KAPITA),Logaritma natural pengeluaran per kapita,Natural logarithm of per-capita expenditure
+fact_secondary_students,exp_quintile,INTEGER,Predictor,2020-2023,1..5 (1=poorest),"Weighted quantile(KAPITA, WERT)","Kuintil pengeluaran terboboti WERT per gelombang (1=termiskin, 5=terkaya)",Wave-specific weighted expenditure quintile across all Jabar HH
+fact_secondary_students,hh_size,INTEGER,Predictor,2020-2023,>= 1,R301,Jumlah anggota rumah tangga,Number of household members
+fact_secondary_students,krt_female,INTEGER,Predictor,2020-2023,0 | 1,R405 (R403==1),"Kepala Rumah Tangga perempuan (1=Ya, 0=Laki-laki)",Female household head indicator
+fact_secondary_students,krt_edu_cat,TEXT,Predictor,2020-2023,5 categories,R615 (20-21) / R614 (22-23),Tingkat ijazah tertinggi KRT (5 kategori terharmonisir),Harmonized highest certificate of household head
+fact_secondary_students,rt_has_computer_r2001f,INTEGER,Predictor,2020-2023,0 | 1,R2001F==1,RT memiliki komputer/laptop (R2001F=1),Household owns desktop/laptop indicator
+fact_secondary_students,has_pkh,INTEGER,Predictor,2020-2023,0 | 1,R2204A==1,RT penerima bantuan PKH (R2204A=1),Household receives PKH conditional cash transfer
+fact_secondary_students,has_kip,INTEGER,Predictor,2020-2023,0 | 1,R616 (20-22) / R615 (23),Memiliki Kartu Indonesia Pintar (KIP),Holds Kartu Indonesia Pintar (KIP)
+fact_secondary_students,has_pip,INTEGER,Predictor,2020-2023,0 | 1,R617 (20-22) / R616 (23),Menerima bantuan PIP (perbaikan kode 2022 diterapkan),Received Program Indonesia Pintar (PIP) aid (2022 swap fixed)
+fact_secondary_students,n_sec_students_in_hh,INTEGER,Diagnostic,2020-2023,>= 1,Count per hh_uid,Jumlah siswa menengah dalam satu rumah tangga,Number of secondary students in same household
+fact_secondary_students,in_track_a_formal,INTEGER,Filter_Flag,2020-2023,0 | 1,is_formal_secondary==1,Flag inklusi sampel utama Track A (2020-2023),Inclusion flag for Track A (2020-2023 formal secondary)
+fact_secondary_students,in_track_b_formal,INTEGER,Filter_Flag,2020-2023,0 | 1,"formal & tahun in {22,23}",Flag inklusi sampel utama Track B (2022-2023),Inclusion flag for Track B (2022-2023 formal secondary)
+qa_audit_log,tier,TEXT,Attribute,2020-2023,Tier 1..Tier 4,QA Gate,Tingkat pemeriksaan QA Gate,Automated QA evaluation tier
+qa_audit_log,success_criterion,TEXT,Attribute,2020-2023,SC-1..SC-5,PRD,Kode kriteria sukses PRD,PRD success criterion code
+qa_audit_log,check_name,TEXT,Attribute,2020-2023,Text,QA Gate,Nama pemeriksaan otomatis,Specific assertion or check performed
+qa_audit_log,status,TEXT,Attribute,2020-2023,PASS | FAIL,QA Gate,Status hasil verifikasi,Verification status
+qa_audit_log,observed_value,TEXT,Attribute,2020-2023,Text,QA Gate,Nilai empiris teramati dari database,Observed empirical metric from data
+qa_audit_log,threshold,TEXT,Attribute,2020-2023,Text,PRD,Ambang batas kelulusan PRD,Required acceptance threshold
